@@ -42,7 +42,25 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateTaskRequest" }
+              "schema": { "$ref": "#/components/schemas/CreateTaskRequest" },
+              "examples": {
+                "daily": {
+                  "summary": "Ежедневная (каждые 2 дня)",
+                  "value": { "title": "Обзвон пациентов", "status": "new", "recurrence": { "type": "daily", "start_at": "2025-07-01", "interval": 2 } }
+                },
+                "monthly": {
+                  "summary": "Ежемесячная (1-го и 15-го)",
+                  "value": { "title": "Формирование отчёта", "status": "new", "recurrence": { "type": "monthly", "month_days": [1, 15] } }
+                },
+                "parity": {
+                  "summary": "Чётные дни",
+                  "value": { "title": "Инвентаризация", "status": "new", "recurrence": { "type": "parity", "parity": "even" } }
+                },
+                "specific_dates": {
+                  "summary": "Конкретные даты",
+                  "value": { "title": "Плановый осмотр", "status": "new", "recurrence": { "type": "specific_dates", "dates": ["2025-07-10", "2025-07-20"] } }
+                }
+              }
             }
           }
         },
@@ -56,6 +74,49 @@
             }
           },
           "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/occurrences": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "Get task occurrences",
+        "description": "Returns dates when the task should occur within the given range",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64", "minimum": 1 }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "date", "example": "2025-07-01" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "date", "example": "2025-07-31" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of dates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string", "format": "date" },
+                  "example": ["2025-07-01", "2025-07-03", "2025-07-05"]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
     },
@@ -157,38 +218,31 @@
         "type": "object",
         "required": ["title"],
         "properties": {
-          "title": {
-            "type": "string",
-            "example": "Prepare release"
-          },
-          "description": {
-            "type": "string",
-            "example": "Collect release notes and check migrations"
-          },
-          "status": {
-            "type": "string",
-            "enum": ["new", "in_progress", "done"],
-            "example": "new"
-          }
+          "title": { "type": "string", "example": "Prepare release" },
+          "description": { "type": "string", "example": "Collect release notes and check migrations" },
+          "status": { "type": "string", "enum": ["new", "in_progress", "done"], "example": "new" },
+          "recurrence": { "$ref": "#/components/schemas/Recurrence" }
         }
       },
       "UpdateTaskRequest": {
         "type": "object",
         "required": ["title", "status"],
         "properties": {
-          "title": {
-            "type": "string",
-            "example": "Prepare release"
-          },
-          "description": {
-            "type": "string",
-            "example": "Collect release notes and check migrations"
-          },
-          "status": {
-            "type": "string",
-            "enum": ["new", "in_progress", "done"],
-            "example": "in_progress"
-          }
+          "title": { "type": "string", "example": "Prepare release" },
+          "description": { "type": "string", "example": "Collect release notes and check migrations" },
+          "status": { "type": "string", "enum": ["new", "in_progress", "done"], "example": "in_progress" },
+          "recurrence": { "$ref": "#/components/schemas/Recurrence" }
+        }
+      },
+      "Recurrence": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string", "enum": ["daily", "monthly", "specific_dates", "parity"], "example": "daily" },
+          "start_at": { "type": "string", "format": "date", "example": "2025-07-01" },
+          "interval": { "type": "integer", "example": 2 },
+          "month_days": { "type": "array", "items": { "type": "integer" }, "example": [1, 15] },
+          "dates": { "type": "array", "items": { "type": "string", "format": "date" }, "example": ["2025-07-10", "2025-07-20"] },
+          "parity": { "type": "string", "enum": ["even", "odd"], "example": "even" }
         }
       },
       "Task": {
@@ -205,6 +259,7 @@
             "enum": ["new", "in_progress", "done"],
             "example": "new"
           },
+          "recurrence": { "$ref": "#/components/schemas/Recurrence" },
           "created_at": {
             "type": "string",
             "format": "date-time",

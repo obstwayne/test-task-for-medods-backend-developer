@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -27,10 +28,17 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rec, err := toRecurrenceDomain(req.Recurrence)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	created, err := h.usecase.Create(r.Context(), taskusecase.CreateInput{
 		Title:       req.Title,
 		Description: req.Description,
 		Status:      req.Status,
+		Recurrence:  rec,
 	})
 	if err != nil {
 		writeUsecaseError(w, err)
@@ -69,10 +77,17 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rec, err := toRecurrenceDomain(req.Recurrence)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	updated, err := h.usecase.Update(r.Context(), id, taskusecase.UpdateInput{
 		Title:       req.Title,
 		Description: req.Description,
 		Status:      req.Status,
+		Recurrence:  rec,
 	})
 	if err != nil {
 		writeUsecaseError(w, err)
@@ -110,6 +125,47 @@ func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *TaskHandler) GetOccurrences(w http.ResponseWriter, r *http.Request) {
+	id, err := getIDFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+
+	if fromStr == "" || toStr == "" {
+		writeError(w, http.StatusBadRequest, errors.New("from and to query params are required"))
+		return
+	}
+
+	from, err := time.Parse(dateLayout, fromStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, errors.New("invalid from date"))
+		return
+	}
+
+	to, err := time.Parse(dateLayout, toStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, errors.New("invalid to date"))
+		return
+	}
+
+	dates, err := h.usecase.GetOccurrences(r.Context(), id, from, to)
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+
+	result := make([]string, 0, len(dates))
+	for _, d := range dates {
+		result = append(result, d.Format(dateLayout))
+	}
+
+	writeJSON(w, http.StatusOK, result)
 }
 
 func getIDFromRequest(r *http.Request) (int64, error) {

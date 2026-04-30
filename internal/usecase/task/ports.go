@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"time"
 
 	taskdomain "example.com/taskservice/internal/domain/task"
 )
@@ -20,16 +21,19 @@ type Usecase interface {
 	Update(ctx context.Context, id int64, input UpdateInput) (*taskdomain.Task, error)
 	Delete(ctx context.Context, id int64) error
 	List(ctx context.Context) ([]taskdomain.Task, error)
+	GetOccurrences(ctx context.Context, id int64, from, to time.Time) ([]time.Time, error)
 }
 
 type CreateInput struct {
 	Title       string
 	Description string
+	Recurrence  *taskdomain.Recurrence
 	Status      taskdomain.Status
 }
 
 type UpdateInput struct {
 	Title       string
 	Description string
+	Recurrence  *taskdomain.Recurrence
 	Status      taskdomain.Status
 }

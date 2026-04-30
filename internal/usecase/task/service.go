@@ -30,6 +30,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*taskdomain.Ta
 	model := &taskdomain.Task{
 		Title:       normalized.Title,
 		Description: normalized.Description,
+		Recurrence:  normalized.Recurrence,
 		Status:      normalized.Status,
 	}
 	now := s.now()
@@ -66,6 +67,7 @@ func (s *Service) Update(ctx context.Context, id int64, input UpdateInput) (*tas
 		ID:          id,
 		Title:       normalized.Title,
 		Description: normalized.Description,
+		Recurrence:  normalized.Recurrence,
 		Status:      normalized.Status,
 		UpdatedAt:   s.now(),
 	}
@@ -90,6 +92,27 @@ func (s *Service) List(ctx context.Context) ([]taskdomain.Task, error) {
 	return s.repo.List(ctx)
 }
 
+func (s *Service) GetOccurrences(ctx context.Context, id int64, from, to time.Time) ([]time.Time, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("%w: id must be positive", ErrInvalidInput)
+	}
+
+	task, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if task.Recurrence == nil {
+		return nil, fmt.Errorf("%w: task has no recurrence", ErrInvalidInput)
+	}
+
+	if from.After(to) {
+		return nil, fmt.Errorf("%w: from must be before or equal to to", ErrInvalidInput)
+	}
+
+	return task.Recurrence.Occurrences(from, to), nil
+}
+
 func validateCreateInput(input CreateInput) (CreateInput, error) {
 	input.Title = strings.TrimSpace(input.Title)
 	input.Description = strings.TrimSpace(input.Description)
@@ -106,6 +129,10 @@ func validateCreateInput(input CreateInput) (CreateInput, error) {
 		return CreateInput{}, fmt.Errorf("%w: invalid status", ErrInvalidInput)
 	}
 
+	if input.Recurrence != nil && !input.Recurrence.Valid() {
+		return CreateInput{}, fmt.Errorf("%w: invalid recurrence", ErrInvalidInput)
+	}
+
 	return input, nil
 }
 
@@ -119,6 +146,10 @@ func validateUpdateInput(input UpdateInput) (UpdateInput, error) {
 
 	if !input.Status.Valid() {
 		return UpdateInput{}, fmt.Errorf("%w: invalid status", ErrInvalidInput)
+	}
+
+	if input.Recurrence != nil && !input.Recurrence.Valid() {
+		return UpdateInput{}, fmt.Errorf("%w: invalid recurrence", ErrInvalidInput)
 	}
 
 	return input, nil
